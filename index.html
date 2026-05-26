@@ -58,6 +58,7 @@ table {
 th, td { padding: 0.6rem 0.8rem; text-align: right; border-bottom: 1px solid var(--border); }
 th { background: var(--green); color: #fff; font-weight: 500; }
 th:first-child, td:first-child { text-align: left; }
+td:last-child { font-weight: 600; }
 tr:hover { background: #f3efe7; }
 .badge {
   display: inline-block;
@@ -79,6 +80,8 @@ tr:hover { background: #f3efe7; }
 .insight-box p { margin-bottom: 0.5rem; color: var(--mid); font-size: 0.92rem; }
 .insight-box p:last-child { margin-bottom: 0; }
 .insight-box strong { color: var(--text); }
+.insight-box .change-up { color: var(--red); font-weight: 700; }
+.insight-box .change-down { color: #166534; font-weight: 700; }
 .metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -133,6 +136,11 @@ footer {
 </table>
 </div>
 
+<div class="card">
+<h2>🤖 AI-analyse: Procentvis ændring 2020–2025</h2>
+<div class="insight-box" id="insight-change"></div>
+</div>
+
 </div>
 
 <footer>Kilde: noegletal.dk · Socioøkonomisk indeks (ID 25) · Data: Henrik Astrup</footer>
@@ -165,10 +173,16 @@ const firstYear = years[0];
 const lastIdx = years.length - 1;
 const firstIdx = 0;
 
+// Helper: percentage change
+function pctChange(first, last) {
+  return (last - first) / first * 100;
+}
+
 // Metrics
 const hvVal = data.Hvidovre.values[lastIdx];
 const hvFirst = data.Hvidovre.values[firstIdx];
-const trend = ((hvVal - hvFirst) / hvFirst * 100).toFixed(1);
+const hvChange = pctChange(hvFirst, hvVal);
+const trend = hvChange.toFixed(1);
 
 const vals2025 = {};
 let maxV = -Infinity, minV = Infinity, maxK = '', minK = '', sum = 0, count = 0;
@@ -184,15 +198,21 @@ const avg = sum / count;
 
 document.getElementById('hv-2025').textContent = hvVal.toFixed(2);
 document.getElementById('hv-trend').textContent = (trend > 0 ? '+' : '') + trend + '%';
-document.getElementById('hv-trend').style.color = trend > 0 ? '#C0392B' : '#166534';
+document.getElementById('hv-trend').style.color = hvChange > 0 ? '#C0392B' : '#166534';
 document.getElementById('hoejest').textContent = maxK + ' ' + maxV.toFixed(2);
 document.getElementById('lavest').textContent = minK + ' ' + minV.toFixed(2);
 document.getElementById('gns-2025').textContent = avg.toFixed(2);
 
-// Table
+// Table — add percentage change column
 const tableHead = document.querySelector('#dataTable thead tr');
 years.forEach(y => { const th = document.createElement('th'); th.textContent = y; tableHead.appendChild(th); });
+// Add the "Ændring" column header
+const thChange = document.createElement('th');
+thChange.textContent = 'Ændring 2020→2025';
+tableHead.appendChild(thChange);
+
 const tbody = document.querySelector('#dataTable tbody');
+const changes = {};
 for (const [k, v] of Object.entries(data)) {
   const tr = document.createElement('tr');
   const tdN = document.createElement('td');
@@ -205,6 +225,15 @@ for (const [k, v] of Object.entries(data)) {
     if (k === 'Hvidovre') td.style.fontWeight = '700';
     tr.appendChild(td);
   });
+  // Percentage change column
+  const c = pctChange(v.values[firstIdx], v.values[lastIdx]);
+  changes[k] = c;
+  const tdC = document.createElement('td');
+  const pctStr = (c >= 0 ? '+' : '') + c.toFixed(1) + '%';
+  tdC.textContent = pctStr;
+  tdC.style.color = c > 0 ? '#C0392B' : (c < 0 ? '#166534' : '#4A4A44');
+  tdC.style.fontWeight = k === 'Hvidovre' ? '700' : '600';
+  tr.appendChild(tdC);
   tbody.appendChild(tr);
 }
 
@@ -245,7 +274,7 @@ new Chart(document.getElementById('chartMain'), {
   }
 });
 
-// Analysis
+// Main analysis
 const analysis = document.getElementById('insight-main');
 
 const lavereEnLandsgns = Object.entries(data)
@@ -275,6 +304,75 @@ analysis.innerHTML = `
 <p><strong>Største forskelle:</strong> ${brondbyNote}</p>
 <p><strong>${maxK}</strong> har det højeste indeks (${maxV.toFixed(2)}), <strong>${minK}</strong> det laveste (${minV.toFixed(2)}). Forskellen mellem højeste og laveste er <strong>${(maxV-minV).toFixed(2)}</strong> point.</p>
 <p><strong>Hele landet = 1,00.</strong> Kommuner over 1,00 har større udgiftsbehov end gennemsnittet — typisk pga. socioøkonomiske faktorer som lav indkomst, lav uddannelse, mange enlige forsørgere eller ikke-vestlige indvandrere.</p>
+`;
+
+// ========== CHANGE ANALYSIS ==========
+const changeAnalysis = document.getElementById('insight-change');
+
+// Rank by change
+const sortedByChange = Object.entries(changes).sort((a, b) => b[1] - a[1]); // descending (most positive first)
+
+const biggestIncrease = sortedByChange[sortedByChange.length - 1][1] > 0
+  ? sortedByChange[sortedByChange.length - 1]
+  : sortedByChange[0];
+const biggestDecrease = sortedByChange[0][1] < 0
+  ? sortedByChange[0]
+  : sortedByChange[sortedByChange.length - 1];
+
+// Find which went up vs down
+const goingUp = Object.entries(changes).filter(([k, c]) => c > 0).map(([k, c]) => `${k} (+${c.toFixed(1)}%)`);
+const goingDown = Object.entries(changes).filter(([k, c]) => c < 0).map(([k, c]) => `${k} (${c.toFixed(1)}%)`);
+const unchanged = Object.entries(changes).filter(([k, c]) => c === 0).map(([k]) => `${k} (0,0%)`);
+
+// Average change
+const avgChange = Object.values(changes).reduce((s, c) => s + c, 0) / Object.keys(changes).length;
+
+// Hvidovre rank by change
+const hvChangeRank = sortedByChange.findIndex(([k]) => k === 'Hvidovre') + 1;
+
+// Direction callout for Hvidovre
+let hvDir = '';
+if (changes.Hvidovre > 0) {
+  hvDir = `stigning`;
+} else if (changes.Hvidovre < 0) {
+  hvDir = `et fald`;
+} else {
+  hvDir = `uændret`;
+}
+
+let upDownSummary = '';
+if (goingUp.length > 0 && goingDown.length > 0) {
+  upDownSummary = `${goingUp.length} kommune${goingUp.length > 1 ? 'r' : ''} har oplevet en stigning (${goingUp.join(', ')}), mens ${goingDown.length} kommune${goingDown.length > 1 ? 'r' : ''} har oplevet et fald (${goingDown.join(', ')}).`;
+  if (unchanged.length > 0) {
+    upDownSummary = upDownSummary.slice(0, -1) + `. ${unchanged.join(', ')} er uændret.`;
+  }
+} else if (goingUp.length > 0) {
+  upDownSummary = `Alle ${goingUp.length} kommuner har oplevet en stigning (${goingUp.join(', ')}).`;
+} else if (goingDown.length > 0) {
+  upDownSummary = `Alle ${goingDown.length} kommuner har oplevet et fald (${goingDown.join(', ')}).`;
+} else {
+  upDownSummary = `Ingen kommuner har haft væsentlige ændringer.`;
+}
+
+const sortedLines = sortedByChange
+  .map(([k, c], i) => {
+    const arrow = c > 0 ? '📈' : (c < 0 ? '📉' : '➡️');
+    const pct = (c >= 0 ? '+' : '') + c.toFixed(1) + '%';
+    const highlight = k === 'Hvidovre' ? ' <strong>← Hvidovre</strong>' : '';
+    return `<strong>${i+1}.</strong> ${arrow} ${k}: ${pct}${highlight}`;
+  })
+  .join('<br>');
+
+changeAnalysis.innerHTML = `
+<p><strong>Hvidovre</strong> har haft ${hvDir} på <span class="${changes.Hvidovre > 0 ? 'change-up' : 'change-down'}">${(changes.Hvidovre >= 0 ? '+' : '')}${changes.Hvidovre.toFixed(1)}%</span> i socioøkonomisk indeks fra ${firstYear} til ${lastYear}. Hvidovre rangerer som <strong>nr. ${hvChangeRank}</strong> ud af ${Object.keys(changes).length} kommuner målt på ændring.</p>
+
+<p><strong>Spændvidde i ændringer:</strong> ${goingUp.length > 0 ? `Største stigning: ${biggestIncrease[0]} (+${biggestIncrease[1].toFixed(1)}%). ` : ''}${goingDown.length > 0 ? `Største fald: ${biggestDecrease[0]} (${biggestDecrease[1].toFixed(1)}%). ` : ''}Gennemsnitlig ændring på tværs af alle ${Object.keys(changes).length} kommuner: <span class="${avgChange > 0 ? 'change-up' : 'change-down'}">${(avgChange >= 0 ? '+' : '')}${avgChange.toFixed(1)}%</span>.</p>
+
+<p><strong>${upDownSummary}</strong></p>
+
+<p><strong>Rangering (største stigning → største fald):</strong><br>${sortedLines}</p>
+
+<p><strong>Fortolkning:</strong> Et <span class="change-up">stigende</span> indeks betyder at kommunens socioøkonomiske udgiftsbehov vokser relativt til landsgennemsnittet — flere borgere med behov for tilskud, ofte drevet af demografi eller flyttemønstre. Et <span class="change-down">faldende</span> indeks signalerer en gunstigere befolkningssammensætning. Hvidovres indeks er steget med ${Math.abs(changes.Hvidovre).toFixed(1)}% over perioden, hvilket placerer kommunen i den ${hvChangeRank <= 3 ? 'øvre' : 'nedre'} halvdel af sammenligningsgruppen. Til sammenligning har Brøndby haft et betydeligt fald på ${Math.abs(changes.Brøndby).toFixed(1)}%, hvilket delvis indsnævrer det store gab mellem de to nabokommuner.</p>
 `;
 </script>
 </body>
