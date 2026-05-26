@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Socioøkonomisk indeks — Hvidovre og sammenligningskommuner</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --green: #1A4D2E;
+  --green-mid: #2E7D54;
+  --gold: #C9973A;
+  --gold-lite: #E8C06A;
+  --red: #C0392B;
+  --bg: #F9F6F0;
+  --card: #FFFFFF;
+  --text: #1C1C1A;
+  --mid: #4A4A44;
+  --muted: #8A8A7E;
+  --border: #E2DDD4;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 0; line-height: 1.6;
+}
+header {
+  background: var(--green);
+  color: #fff;
+  padding: 2rem 2rem 1.5rem;
+}
+header h1 { font-size: 1.6rem; font-weight: 600; margin-bottom: 0.3rem; }
+header p { color: var(--gold-lite); font-size: 0.9rem; }
+.container { max-width: 1000px; margin: 0 auto; padding: 1.5rem; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.card h2 {
+  font-size: 1.1rem;
+  color: var(--green);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--gold);
+}
+.chart-wrapper { height: 400px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+th, td { padding: 0.6rem 0.8rem; text-align: right; border-bottom: 1px solid var(--border); }
+th { background: var(--green); color: #fff; font-weight: 500; }
+th:first-child, td:first-child { text-align: left; }
+tr:hover { background: #f3efe7; }
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-green { background: #dcfce7; color: #166534; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-gold { background: #fef9c3; color: #854d0e; }
+.insight-box {
+  background: #f0f5ee;
+  border-left: 4px solid var(--gold);
+  padding: 1rem 1.2rem;
+  border-radius: 0 8px 8px 0;
+  margin: 1rem 0 0;
+}
+.insight-box p { margin-bottom: 0.5rem; color: var(--mid); font-size: 0.92rem; }
+.insight-box p:last-child { margin-bottom: 0; }
+.insight-box strong { color: var(--text); }
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+.metric {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+.metric .value { font-size: 1.5rem; font-weight: 700; color: var(--green); }
+.metric .label { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Socioøkonomisk indeks 2020–2025</h1>
+<p>Hvidovre Kommune · Sammenligning med Brøndby, Rødovre, Ballerup, Gladsaxe, Herlev</p>
+<p>Kilde: De Kommunale Nøgletal (noegletal.dk) · Indeks 1,00 = landsgennemsnit</p>
+</header>
+
+<div class="container">
+
+<div class="metrics">
+  <div class="metric"><div class="value" id="hv-2025">-</div><div class="label">Hvidovre 2025</div></div>
+  <div class="metric"><div class="value" id="hv-trend">-</div><div class="label">Trend 2020→2025</div></div>
+  <div class="metric"><div class="value" id="hoejest">-</div><div class="label">Højeste 2025</div></div>
+  <div class="metric"><div class="value" id="lavest">-</div><div class="label">Laveste 2025</div></div>
+  <div class="metric"><div class="value" id="gns-2025">-</div><div class="label">Gns. kommuner 2025</div></div>
+</div>
+
+<div class="card">
+<h2>📈 Udvikling i socioøkonomisk indeks</h2>
+<div class="chart-wrapper"><canvas id="chartMain"></canvas></div>
+<div class="insight-box" id="insight-main"></div>
+</div>
+
+<div class="card">
+<h2>📊 Detaljerede værdier</h2>
+<table id="dataTable">
+<thead><tr><th>Kommune</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+</div>
+
+<footer>Kilde: noegletal.dk · Socioøkonomisk indeks (ID 25) · Data: Henrik Astrup</footer>
+
+<script>
+const DATA = {
+  "years": ["2020","2021","2022","2023","2024","2025"],
+  "data": {
+    "Hvidovre": {"values": [1.15, 1.17, 1.17, 1.19, 1.19, 1.18]},
+    "Brøndby":  {"values": [1.72, 1.75, 1.74, 1.73, 1.66, 1.61]},
+    "Rødovre":  {"values": [1.18, 1.22, 1.21, 1.23, 1.22, 1.19]},
+    "Ballerup": {"values": [1.31, 1.28, 1.27, 1.28, 1.27, 1.26]},
+    "Gladsaxe": {"values": [1.06, 1.07, 1.09, 1.09, 1.08, 1.06]},
+    "Herlev":   {"values": [1.23, 1.25, 1.25, 1.25, 1.25, 1.22]}
+  }
+};
+
+const FARVER = {
+  'Hvidovre': '#2563eb',
+  'Brøndby': '#059669',
+  'Rødovre': '#dc2626',
+  'Ballerup': '#d97706',
+  'Gladsaxe': '#7c3aed',
+  'Herlev': '#0891b2'
+};
+
+const {years, data} = DATA;
+const lastYear = years[years.length-1];
+const firstYear = years[0];
+const lastIdx = years.length - 1;
+const firstIdx = 0;
+
+// Metrics
+const hvVal = data.Hvidovre.values[lastIdx];
+const hvFirst = data.Hvidovre.values[firstIdx];
+const trend = ((hvVal - hvFirst) / hvFirst * 100).toFixed(1);
+
+const vals2025 = {};
+let maxV = -Infinity, minV = Infinity, maxK = '', minK = '', sum = 0, count = 0;
+for (const [k, v] of Object.entries(data)) {
+  const val = v.values[lastIdx];
+  vals2025[k] = val;
+  if (val > maxV) { maxV = val; maxK = k; }
+  if (val < minV) { minV = val; minK = k; }
+  sum += val;
+  count++;
+}
+const avg = sum / count;
+
+document.getElementById('hv-2025').textContent = hvVal.toFixed(2);
+document.getElementById('hv-trend').textContent = (trend > 0 ? '+' : '') + trend + '%';
+document.getElementById('hv-trend').style.color = trend > 0 ? '#C0392B' : '#166534';
+document.getElementById('hoejest').textContent = maxK + ' ' + maxV.toFixed(2);
+document.getElementById('lavest').textContent = minK + ' ' + minV.toFixed(2);
+document.getElementById('gns-2025').textContent = avg.toFixed(2);
+
+// Table
+const tableHead = document.querySelector('#dataTable thead tr');
+years.forEach(y => { const th = document.createElement('th'); th.textContent = y; tableHead.appendChild(th); });
+const tbody = document.querySelector('#dataTable tbody');
+for (const [k, v] of Object.entries(data)) {
+  const tr = document.createElement('tr');
+  const tdN = document.createElement('td');
+  tdN.textContent = k;
+  tdN.style.fontWeight = k === 'Hvidovre' ? '700' : '400';
+  tr.appendChild(tdN);
+  v.values.forEach(val => {
+    const td = document.createElement('td');
+    td.textContent = val.toFixed(2);
+    if (k === 'Hvidovre') td.style.fontWeight = '700';
+    tr.appendChild(td);
+  });
+  tbody.appendChild(tr);
+}
+
+// Chart
+new Chart(document.getElementById('chartMain'), {
+  type: 'line',
+  data: {
+    labels: years,
+    datasets: Object.entries(data).map(([k, v]) => ({
+      label: k,
+      data: v.values,
+      borderColor: FARVER[k],
+      backgroundColor: FARVER[k] + '22',
+      borderWidth: k === 'Hvidovre' ? 4 : 2,
+      borderDash: k === 'Hvidovre' ? [] : [6, 3],
+      pointRadius: k === 'Hvidovre' ? 5 : 3,
+      pointBackgroundColor: FARVER[k],
+      fill: false,
+      tension: 0.1
+    }))
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16 } },
+      tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) } }
+    },
+    scales: {
+      y: {
+        min: 0.95,
+        max: 1.85,
+        ticks: { callback: v => v.toFixed(2) },
+        grid: { color: '#e8e4dc' }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Analysis
+const analysis = document.getElementById('insight-main');
+
+const lavereEnLandsgns = Object.entries(data)
+  .filter(([k, v]) => v.values[lastIdx] < 1.0)
+  .map(([k]) => k).join(', ');
+
+const hoejereEnLandsgns = Object.entries(data)
+  .filter(([k, v]) => v.values[lastIdx] > 1.0)
+  .map(([k, v]) => `${k} (${v.values[lastIdx].toFixed(2)})`).join(', ');
+
+let brondbyNote = '';
+if (data.Brøndby.values[firstIdx] !== undefined) {
+  const bf = data.Brøndby.values[firstIdx];
+  const bl = data.Brøndby.values[lastIdx];
+  const bChange = ((bl - bf) / bf * 100).toFixed(1);
+  brondbyNote = `Brøndby har det klart højeste indeks i området (${data.Brøndby.values[lastIdx].toFixed(2)} i ${lastYear}), men er faldende fra ${bf.toFixed(2)} i ${firstYear} til ${bl.toFixed(2)} — et fald på ${Math.abs(bChange)}%.`;
+}
+
+let hvCompare = '';
+const hvRel = Object.entries(data)
+  .filter(([k]) => k !== 'Hvidovre')
+  .map(([k, v]) => `${k} (${v.values[lastIdx].toFixed(2)})`).join(', ');
+
+analysis.innerHTML = `
+<p><strong>Hvidovre</strong> har et socioøkonomisk indeks på <strong>${hvVal.toFixed(2)}</strong> i ${lastYear}, hvilket er ${hvVal > 1.0 ? `${((hvVal-1)*100).toFixed(0)}% over` : `${((1-hvVal)*100).toFixed(0)}% under`} landsgennemsnittet. Indekset er ${trend > 0 ? 'steget' : 'faldet'} med ${Math.abs(trend)}% fra ${firstYear} til ${lastYear}.</p>
+<p><strong>Sammenligning:</strong> ${hvRel}</p>
+<p><strong>Største forskelle:</strong> ${brondbyNote}</p>
+<p><strong>${maxK}</strong> har det højeste indeks (${maxV.toFixed(2)}), <strong>${minK}</strong> det laveste (${minV.toFixed(2)}). Forskellen mellem højeste og laveste er <strong>${(maxV-minV).toFixed(2)}</strong> point.</p>
+<p><strong>Hele landet = 1,00.</strong> Kommuner over 1,00 har større udgiftsbehov end gennemsnittet — typisk pga. socioøkonomiske faktorer som lav indkomst, lav uddannelse, mange enlige forsørgere eller ikke-vestlige indvandrere.</p>
+`;
+</script>
+</body>
+</html>
